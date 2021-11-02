@@ -123,12 +123,13 @@ contract XendStaking {
   * ----------------------------------------------------------------------------------------------------------------------------
   */
 
+  // function to add new category
   function addPackage(
-    uint256 _period, 
-    uint256 _withdrawTime, 
-    uint256 _tokenRewardPercent, 
-    uint256 _tokenPenaltyPercent, 
-    uint256 _limit
+    uint256 _period,                    // variable for time period management (days)
+    uint256 _withdrawTime,              // variable to manage withdraw time lock up (timestamp)
+    uint256 _tokenRewardPercent,        // variable to manage token reward percentage
+    uint256 _tokenPenaltyPercent,       // variable to manage token penalty percentage 
+    uint256 _limit                      // variable for max token amount that can be staked, the same as capacity of pacakge
   ) external onlyOwner returns(bool) {
     // simple validation check
     assert(_period > 1);
@@ -163,8 +164,9 @@ contract XendStaking {
     return true;
   }
 
+  // function to set package parameters
   function setPackage(
-    uint256 packageId,
+    uint256 packageId,                      // package id to set
     uint256 _period, 
     uint256 _withdrawTime, 
     uint256 _tokenRewardPercent, 
@@ -453,6 +455,7 @@ contract XendStaking {
     return _TokenTransactionStatus[id];
   }
 
+  // function to get staked amount, earned amount and reward amount of user based on address
   function getUserInfoByAddress(address addr) external view returns (uint256 staked, uint256 earned, uint256 reward) {
     require(addr != address(0), "Invalid Address, Pleae Try Again!!!");
     uint256[] memory tokenStakingIds = _tokenStakingId[addr];
