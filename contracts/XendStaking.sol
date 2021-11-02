@@ -12,23 +12,52 @@ contract XendStaking {
     
   using SafeMath for uint256;
   address private _owner;                                           // variable for Owner of the Contract.
-  uint256 private _withdrawTime;                                    // variable to manage withdraw time for Token
-  uint256 constant public PERIOD_SILVER            = 30;            // variable constant for time period managemnt
-  uint256 constant public PERIOD_GOLD              = 60;            // variable constant for time period managemnt
-  uint256 constant public PERIOD_PLATINUM          = 90;            // variable constant for time period managemnt
-  uint256 constant public WITHDRAW_TIME_SILVER     = 15 * 1 days;   // variable constant to manage withdraw time lock up 
-  uint256 constant public WITHDRAW_TIME_GOLD       = 30 * 1 days;   // variable constant to manage withdraw time lock up
-  uint256 constant public WITHDRAW_TIME_PLATINUM   = 60 * 1 days;   // variable constant to manage withdraw time lock up
-  uint256 constant public TOKEN_REWARD_PERCENT_SILVER    = 565;      // variable constant to manage token reward percentage for silver
-  uint256 constant public TOKEN_REWARD_PERCENT_GOLD      = 1754;      // variable constant to manage token reward percentage for gold
-  uint256 constant public TOKEN_REWARD_PERCENT_PLATINUM  = 3555;      // variable constant to manage token reward percentage for platinum
-  uint256 constant public TOKEN_PENALTY_PERCENT_SILVER   = 142;       // variable constant to manage token penalty percentage for silver
-  uint256 constant public TOKEN_PENALTY_PERCENT_GOLD     = 504;       // variable constant to manage token penalty percentage for silver
-  uint256 constant public TOKEN_PENALTY_PERCENT_PLATINUM = 1767;       // variable constant to manage token penalty percentage for silver
+
+  struct Package {
+    uint256 period;                       // variable for time period management (days)
+    uint256 withdrawTime;                 // variable to manage withdraw time lock up (timestamp)
+    uint256 tokenRewardPercent;           // variable to manage token reward percentage
+    uint256 tokenPenaltyPercent;          // variable to manage token penalty percentage 
+    uint256 limit;                        // variable for max token amount that can be staked, the same as capacity of pacakge
+  }
+
+  Package[] public categories;
   
   // events to handle staking pause or unpause for token
   event Paused();
   event Unpaused();
+  
+  event PackageAdded(
+    uint256 period,
+    uint256 withdrawTime,
+    uint256 tokenRewardPercent,
+    uint256 tokenPenaltyPercent,
+    uint256 limit
+  );
+
+  event PackageUpdated(
+    uint256 period,
+    uint256 withdrawTime,
+    uint256 tokenRewardPercent,
+    uint256 tokenPenaltyPercent,
+    uint256 limit
+  );
+  
+  event Deposit(
+    address user,
+    uint256 amount,
+    uint256 time,
+    uint256 stakingId,
+    uint256 timestamp
+  );
+
+  event Withdraw(
+    address user,
+    uint256 stakingId,
+    uint256 amount,
+    uint256 rewardAmount,
+    uint256 timestamp
+  );
   
   /*
   * ---------------------------------------------------------------------------------------------------------------------------
@@ -93,6 +122,86 @@ contract XendStaking {
   * Owner functions of get value, set value and other Functionality
   * ----------------------------------------------------------------------------------------------------------------------------
   */
+
+  function addPackage(
+    uint256 _period, 
+    uint256 _withdrawTime, 
+    uint256 _tokenRewardPercent, 
+    uint256 _tokenPenaltyPercent, 
+    uint256 _limit
+  ) external onlyOwner returns(bool) {
+    // simple validation check
+    assert(_period > 1);
+    assert(_withdrawTime > 1 days && _withdrawTime <= _period * 1 days);
+    assert(_tokenRewardPercent != 0);
+    assert(_tokenPenaltyPercent <= _tokenRewardPercent);
+    assert(_limit >= 0);
+
+    // more check
+    for (uint i = 0; i < categories.length; i++) {
+      if (_period == categories[i].period) assert(false);       // can't add package that has the same period as the existing package
+    }
+
+    Package memory package = Package({
+      period: _period,
+      withdrawTime: _withdrawTime,
+      tokenRewardPercent: _tokenRewardPercent,
+      tokenPenaltyPercent: _tokenPenaltyPercent,
+      limit: _limit
+    });
+
+    categories.push(package);
+    
+    emit PackageAdded(
+      _period,
+      _withdrawTime,
+      _tokenRewardPercent,
+      _tokenPenaltyPercent,
+      _limit
+    );
+
+    return true;
+  }
+
+  function setPackage(
+    uint256 packageId,
+    uint256 _period, 
+    uint256 _withdrawTime, 
+    uint256 _tokenRewardPercent, 
+    uint256 _tokenPenaltyPercent, 
+    uint256 _limit
+  ) external onlyOwner returns (bool) {
+    // simple validation check
+    assert(_period > 1);
+    assert(_withdrawTime > 1 days && _withdrawTime <= _period * 1 days);
+    assert(_tokenRewardPercent != 0);
+    assert(_tokenPenaltyPercent <= _tokenRewardPercent);
+    assert(_limit >= 0);
+
+    // confirm
+    for (uint i = 0; i < categories.length; i++) {
+      if (packageId == i) continue;
+      if (_period == categories[i].period) assert(false);       // can't add package that has the same period as the existing package
+    }
+
+    categories[packageId] = Package({
+      period: _period,
+      withdrawTime: _withdrawTime,
+      tokenRewardPercent: _tokenRewardPercent,
+      tokenPenaltyPercent: _tokenPenaltyPercent,
+      limit: _limit
+    });
+
+    emit PackageUpdated(
+      _period,
+      _withdrawTime,
+      _tokenRewardPercent,
+      _tokenPenaltyPercent,
+      _limit
+    );
+
+    return true;
+  }
   
   // function to add token reward in contract
   function addTokenReward(uint256 token) external onlyOwner returns(bool){
@@ -112,6 +221,11 @@ contract XendStaking {
   // function to get token reward in contract
   function getTokenReward() external view returns(uint256){
     return _ownerTokenAllowance;
+  }
+
+  // function to get distributed reward amount of the system
+  function getDistributedRewardAmount() external view returns (uint256) {
+    return _distributedRewardAmount;
   }
   
   // function to pause Token Staking
@@ -162,6 +276,9 @@ contract XendStaking {
   // variable to keep track on reward added by owner
   uint256 private _ownerTokenAllowance = 0;
 
+  // variable to keep track on paid out reward of the system
+  uint256 private _distributedRewardAmount = 0;
+
   // variable for token time management
   uint256 private _tokentime;
   
@@ -177,7 +294,11 @@ contract XendStaking {
   // modifier to check the user for staking || Re-enterance Guard
   modifier tokenStakeCheck(uint256 tokens, uint256 timePeriod){
     require(tokens > 0, "Invalid Token Amount, Please Try Again!!! ");
-    require(timePeriod == PERIOD_SILVER || timePeriod == PERIOD_GOLD || timePeriod == PERIOD_PLATINUM, "Enter the Valid Time Period and Try Again !!!");
+    bool validTime = false;
+    for (uint i = 0; i < categories.length; i++) {
+      if (timePeriod == categories[i].period) validTime = true;
+    }
+    require(validTime == true, "Enter the Valid Time Period and Try Again !!!");
     _;
   }
     
@@ -190,6 +311,7 @@ contract XendStaking {
   // function to performs staking for user tokens for a specific period of time
   function stakeToken(uint256 tokens, uint256 time) external tokenStakeCheck(tokens, time) returns(bool){
     require(tokenPaused == false, "Staking is Paused, Please try after staking get unpaused!!!");
+    
     _tokentime = now + (time * 1 days);
     _tokenStakingCount = _tokenStakingCount + 1;
     _tokenTotalDays[_tokenStakingCount] = time;
@@ -203,6 +325,9 @@ contract XendStaking {
     totalStakedToken = totalStakedToken.add(tokens);
     totalTokenStakesInContract = totalTokenStakesInContract.add(tokens);
     ixend.transferFrom(msg.sender, address(this), tokens);
+
+    emit Deposit(msg.sender, tokens, time, _tokenStakingCount, block.timestamp);
+
     return true;
   }
 
@@ -218,29 +343,24 @@ contract XendStaking {
   
   // function to calculate reward for the message sender for token
   function getTokenRewardDetailsByStakingId(uint256 id) public view returns(uint256){
-    if(_tokenTotalDays[id] == PERIOD_SILVER) {
-        return (_usersTokens[id]*TOKEN_REWARD_PERCENT_SILVER/100000);
-    } else if(_tokenTotalDays[id] == PERIOD_GOLD) {
-               return (_usersTokens[id]*TOKEN_REWARD_PERCENT_GOLD/100000);
-      } else if(_tokenTotalDays[id] == PERIOD_PLATINUM) { 
-                 return (_usersTokens[id]*TOKEN_REWARD_PERCENT_PLATINUM/100000);
-        } else{
-              return 0;
-          }
+    for (uint i = 0; i < categories.length; i++) {
+      if (_tokenTotalDays[id] == categories[i].period) {
+        return (_usersTokens[id] * categories[i].tokenRewardPercent/100000);
+      }
+    }
+
+    return 0;
   }
 
   // function to calculate penalty for the message sender for token
   function getTokenPenaltyDetailByStakingId(uint256 id) public view returns(uint256){
     if(_tokenStakingEndTime[id] > now){
-        if(_tokenTotalDays[id]==PERIOD_SILVER){
-            return (_usersTokens[id]*TOKEN_PENALTY_PERCENT_SILVER/100000);
-        } else if(_tokenTotalDays[id] == PERIOD_GOLD) {
-              return (_usersTokens[id]*TOKEN_PENALTY_PERCENT_GOLD/100000);
-          } else if(_tokenTotalDays[id] == PERIOD_PLATINUM) { 
-                return (_usersTokens[id]*TOKEN_PENALTY_PERCENT_PLATINUM/100000);
-            } else {
-                return 0;
-              }
+        for (uint i = 0; i < categories.length; i++) {
+          if (_tokenTotalDays[id] == categories[i].period) {
+            return (_usersTokens[id] * categories[i].tokenPenaltyPercent/100000);
+          }
+        }
+        return 0;
     } else{
        return 0;
      }
@@ -250,46 +370,29 @@ contract XendStaking {
   function withdrawStakedTokens(uint256 stakingId) external returns(bool) {
     require(_tokenStakingAddress[stakingId] == msg.sender,"No staked token found on this address and ID");
     require(_TokenTransactionStatus[stakingId] != true,"Either tokens are already withdrawn or blocked by admin");
-    if(_tokenTotalDays[stakingId] == PERIOD_SILVER){
-          require(now >= _tokenStakingStartTime[stakingId] + WITHDRAW_TIME_SILVER, "Unable to Withdraw Staked token before 15 days of staking start time, Please Try Again Later!!!");
-          _TokenTransactionStatus[stakingId] = true;
-          if(now >= _tokenStakingEndTime[stakingId]){
-              _finalTokenStakeWithdraw[stakingId] = _usersTokens[stakingId].add(getTokenRewardDetailsByStakingId(stakingId));
-              ixend.transferFrom(address(this), msg.sender,_finalTokenStakeWithdraw[stakingId]);
-              totalTokenStakesInContract = totalTokenStakesInContract.sub(_usersTokens[stakingId]);
-          } else {
-              _finalTokenStakeWithdraw[stakingId] = _usersTokens[stakingId].add(getTokenPenaltyDetailByStakingId(stakingId));
-              ixend.transferFrom(address(this), msg.sender,_usersTokens[stakingId]);
-              totalTokenStakesInContract = totalTokenStakesInContract.sub(_usersTokens[stakingId]);
-            }
-    } else if(_tokenTotalDays[stakingId] == PERIOD_GOLD){
-          require(now >= _tokenStakingStartTime[stakingId] + WITHDRAW_TIME_GOLD, "Unable to Withdraw Staked token before 30 days of staking start time, Please Try Again Later!!!");
-          _TokenTransactionStatus[stakingId] = true;
-          if(now >= _tokenStakingEndTime[stakingId]){
-              _finalTokenStakeWithdraw[stakingId] = _usersTokens[stakingId].add(getTokenRewardDetailsByStakingId(stakingId));
-              ixend.transferFrom(address(this), msg.sender,_finalTokenStakeWithdraw[stakingId]);
-              totalTokenStakesInContract = totalTokenStakesInContract.sub(_usersTokens[stakingId]);
-          } else {
-              _finalTokenStakeWithdraw[stakingId] = _usersTokens[stakingId].add(getTokenPenaltyDetailByStakingId(stakingId));
-              ixend.transferFrom(address(this), msg.sender,_finalTokenStakeWithdraw[stakingId]);
-              totalTokenStakesInContract = totalTokenStakesInContract.sub(_usersTokens[stakingId]);
-            }
-    } else if(_tokenTotalDays[stakingId] == PERIOD_PLATINUM){
-          require(now >= _tokenStakingStartTime[stakingId] + WITHDRAW_TIME_PLATINUM, "Unable to Withdraw Staked token before 45 days of staking start time, Please Try Again Later!!!");
-          _TokenTransactionStatus[stakingId] = true;
-          if(now >= _tokenStakingEndTime[stakingId]){
-              _finalTokenStakeWithdraw[stakingId] = _usersTokens[stakingId].add(getTokenRewardDetailsByStakingId(stakingId));
-              ixend.transferFrom(address(this), msg.sender,_finalTokenStakeWithdraw[stakingId]);
-              totalTokenStakesInContract = totalTokenStakesInContract.sub(_usersTokens[stakingId]);
-          } else {
-              _finalTokenStakeWithdraw[stakingId] = _usersTokens[stakingId].add(getTokenPenaltyDetailByStakingId(stakingId));
-              ixend.transferFrom(address(this), msg.sender,_finalTokenStakeWithdraw[stakingId]);
-              totalTokenStakesInContract = totalTokenStakesInContract.sub(_usersTokens[stakingId]);
-            }
-    } else {
-        return false;
+    
+    for (uint i = 0; i < categories.length; i++) {
+      if (_tokenTotalDays[stakingId] == categories[i].period) {
+        require(now >= _tokenStakingStartTime[stakingId] + categories[i].withdrawTime, "Unable to Withdraw Staked token before withdraw time of staking start time, Please Try Again Later!!!");
+        _TokenTransactionStatus[stakingId] = true;
+        
+        if(now >= _tokenStakingEndTime[stakingId]) {
+          _finalTokenStakeWithdraw[stakingId] = _usersTokens[stakingId].add(getTokenRewardDetailsByStakingId(stakingId));
+          _distributedRewardAmount += getTokenRewardDetailsByStakingId(stakingId);
+        } else {
+          _finalTokenStakeWithdraw[stakingId] = _usersTokens[stakingId].add(getTokenPenaltyDetailByStakingId(stakingId));
+          _distributedRewardAmount += getTokenPenaltyDetailByStakingId(stakingId);
+        }
+        ixend.transferFrom(address(this), msg.sender,_finalTokenStakeWithdraw[stakingId]);
+        totalTokenStakesInContract = totalTokenStakesInContract.sub(_usersTokens[stakingId]);
+
+        emit Withdraw(msg.sender, stakingId, _usersTokens[stakingId], _finalTokenStakeWithdraw[stakingId].sub(_usersTokens[stakingId]), block.timestamp);
+
+        return true;
       }
-    return true;
+    }
+
+    return false;
   }
   
   // function to get Final Withdraw Staked value for token
@@ -348,6 +451,30 @@ contract XendStaking {
   function getTokenLockStatus(uint256 id) external view returns(bool){
     require(id <= _tokenStakingCount,"Unable to reterive data on specified id, Please try again!!");
     return _TokenTransactionStatus[id];
+  }
+
+  function getUserInfoByAddress(address addr) external view returns (uint256 staked, uint256 earned, uint256 reward) {
+    require(addr != address(0), "Invalid Address, Pleae Try Again!!!");
+    uint256[] memory tokenStakingIds = _tokenStakingId[addr];
+
+    for (uint i = 0; i < tokenStakingIds.length; i++) {
+      uint256 stakingId = tokenStakingIds[i];
+      if (_finalTokenStakeWithdraw[stakingId] == 0) {
+        staked += _usersTokens[stakingId];
+        for (uint j = 0; j < categories.length; j++) {
+          if (_tokenTotalDays[stakingId] == categories[j].period) {
+            if(now >= _tokenStakingEndTime[stakingId]) {
+              reward += getTokenRewardDetailsByStakingId(stakingId);
+            } else {
+              reward += getTokenPenaltyDetailByStakingId(stakingId);
+            }
+            break;
+          }
+        }
+      }
+      
+      earned += _finalTokenStakeWithdraw[tokenStakingIds[i]];
+    }
   }
   
 }
