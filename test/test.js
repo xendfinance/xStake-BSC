@@ -48,20 +48,27 @@ contract('XendStaking', async([alice, bob, dev, minter, admin]) => {
       from: minter
     })
 
-    await this.xendStaking.addPackage(30, 15 * 24 * 3600, 565, 142, web3.utils.toWei('10000000000'), {
+    await this.xendStaking.addPackage('SILVER', 30, 15 * 24 * 3600, 565, 142, web3.utils.toWei('10000000000'), {
       from: minter
     })
 
-    await this.xendStaking.addPackage(60, 30 * 24 * 3600, 1754, 504, web3.utils.toWei('10000000000'), {
+    await this.xendStaking.addPackage('GOLD', 60, 30 * 24 * 3600, 1754, 504, web3.utils.toWei('10000000000'), {
       from: minter
     })
 
   })
 
   it("add package, set package", async () => {
-    await this.xendStaking.setPackage(1, 60, 30 * 24 * 3600, 1754, 504, web3.utils.toWei('10000000000'), {
+    await this.xendStaking.setPackage(1, 'GOLD', 60, 30 * 24 * 3600, 1754, 504, web3.utils.toWei('10000000000'), {
       from: minter
     })
+  })
+
+  it("get category list", async () => {
+    const categories = await this.xendStaking.getCategories()
+    for (i = 0; i < categories.length; i++) {
+      console.log(categories[i].name)
+    }
   })
 
   it("deposit tokens, withdraw tokens", async () => {

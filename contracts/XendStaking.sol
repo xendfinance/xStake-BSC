@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "./interfaces/IXend.sol";
@@ -14,6 +15,7 @@ contract XendStaking {
   address private _owner;                                           // variable for Owner of the Contract.
 
   struct Package {
+    string name;                          // variable for package name
     uint256 period;                       // variable for time period management (days)
     uint256 withdrawTime;                 // variable to manage withdraw time lock up (timestamp)
     uint256 tokenRewardPercent;           // variable to manage token reward percentage
@@ -28,6 +30,8 @@ contract XendStaking {
   event Unpaused();
   
   event PackageAdded(
+    uint256 packageId,
+    string name,
     uint256 period,
     uint256 withdrawTime,
     uint256 tokenRewardPercent,
@@ -36,6 +40,8 @@ contract XendStaking {
   );
 
   event PackageUpdated(
+    uint256 packageId,
+    string name,
     uint256 period,
     uint256 withdrawTime,
     uint256 tokenRewardPercent,
@@ -125,6 +131,7 @@ contract XendStaking {
 
   // function to add new category
   function addPackage(
+    string memory _name,
     uint256 _period,                    // variable for time period management (days)
     uint256 _withdrawTime,              // variable to manage withdraw time lock up (timestamp)
     uint256 _tokenRewardPercent,        // variable to manage token reward percentage
@@ -144,6 +151,7 @@ contract XendStaking {
     }
 
     Package memory package = Package({
+      name: _name,
       period: _period,
       withdrawTime: _withdrawTime,
       tokenRewardPercent: _tokenRewardPercent,
@@ -154,6 +162,8 @@ contract XendStaking {
     categories.push(package);
     
     emit PackageAdded(
+      categories.length - 1,
+      _name,
       _period,
       _withdrawTime,
       _tokenRewardPercent,
@@ -167,6 +177,7 @@ contract XendStaking {
   // function to set package parameters
   function setPackage(
     uint256 packageId,                      // package id to set
+    string memory _name,
     uint256 _period, 
     uint256 _withdrawTime, 
     uint256 _tokenRewardPercent, 
@@ -187,6 +198,7 @@ contract XendStaking {
     }
 
     categories[packageId] = Package({
+      name: _name,
       period: _period,
       withdrawTime: _withdrawTime,
       tokenRewardPercent: _tokenRewardPercent,
@@ -195,6 +207,8 @@ contract XendStaking {
     });
 
     emit PackageUpdated(
+      packageId,
+      _name,
       _period,
       _withdrawTime,
       _tokenRewardPercent,
@@ -478,6 +492,11 @@ contract XendStaking {
       
       earned += _finalTokenStakeWithdraw[tokenStakingIds[i]];
     }
+  }
+
+  // function to get category list
+  function getCategories() external view returns (Package[] memory) {
+    return categories;
   }
   
 }
