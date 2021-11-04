@@ -14,6 +14,8 @@ contract XendStaking {
   using SafeMath for uint256;
   address private _owner;                                           // variable for Owner of the Contract.
 
+  uint256 public constant BASIS_POINT = 100000;
+
   struct Package {
     string name;                          // variable for package name
     uint256 period;                       // variable for time period management (days)
@@ -306,13 +308,19 @@ contract XendStaking {
   
   // variable for total stake token in contract
   uint256 public totalTokenStakesInContract = 0;
+
+  // variable for total stake tokens for package in contract
+  mapping (uint256 => uint256) public totalStakedInPackage;
   
   // modifier to check the user for staking || Re-enterance Guard
   modifier tokenStakeCheck(uint256 tokens, uint256 timePeriod){
     require(tokens > 0, "Invalid Token Amount, Please Try Again!!! ");
     bool validTime = false;
     for (uint i = 0; i < categories.length; i++) {
-      if (timePeriod == categories[i].period) validTime = true;
+      if (timePeriod == categories[i].period) {
+        require(totalStakedInPackage[timePeriod].add(tokens) <= categories[i].limit, "Selected Package was already filled. Try another package.");
+        validTime = true;
+      }
     }
     require(validTime == true, "Enter the Valid Time Period and Try Again !!!");
     _;
@@ -340,6 +348,7 @@ contract XendStaking {
     _tokenStakingCount = _tokenStakingCount +1;
     totalStakedToken = totalStakedToken.add(tokens);
     totalTokenStakesInContract = totalTokenStakesInContract.add(tokens);
+    totalStakedInPackage[time] = totalStakedInPackage[time].add(tokens);
     ixend.transferFrom(msg.sender, address(this), tokens);
 
     emit Deposit(msg.sender, tokens, time, _tokenStakingCount, block.timestamp);
@@ -361,7 +370,7 @@ contract XendStaking {
   function getTokenRewardDetailsByStakingId(uint256 id) public view returns(uint256){
     for (uint i = 0; i < categories.length; i++) {
       if (_tokenTotalDays[id] == categories[i].period) {
-        return (_usersTokens[id] * categories[i].tokenRewardPercent/100000);
+        return (_usersTokens[id] * categories[i].tokenRewardPercent/BASIS_POINT);
       }
     }
 
@@ -373,7 +382,7 @@ contract XendStaking {
     if(_tokenStakingEndTime[id] > now){
         for (uint i = 0; i < categories.length; i++) {
           if (_tokenTotalDays[id] == categories[i].period) {
-            return (_usersTokens[id] * categories[i].tokenPenaltyPercent/100000);
+            return (_usersTokens[id] * categories[i].tokenPenaltyPercent/BASIS_POINT);
           }
         }
         return 0;
@@ -401,6 +410,7 @@ contract XendStaking {
         }
         ixend.transferFrom(address(this), msg.sender,_finalTokenStakeWithdraw[stakingId]);
         totalTokenStakesInContract = totalTokenStakesInContract.sub(_usersTokens[stakingId]);
+        totalStakedInPackage[categories[i].period] = totalStakedInPackage[categories[i].period].sub(_usersTokens[stakingId]);
 
         emit Withdraw(msg.sender, stakingId, _usersTokens[stakingId], _finalTokenStakeWithdraw[stakingId].sub(_usersTokens[stakingId]), block.timestamp);
 
