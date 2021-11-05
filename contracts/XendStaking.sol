@@ -223,16 +223,16 @@ contract XendStaking {
   
   // function to add token reward in contract
   function addTokenReward(uint256 token) external onlyOwner returns(bool){
-    _ownerTokenAllowance = _ownerTokenAllowance.add(token);
     ixend.transferFrom(msg.sender, address(this), token);
+    _ownerTokenAllowance = _ownerTokenAllowance.add(token);
     return true;
   }
   
   // function to withdraw added token reward in contract
   function withdrawAddedTokenReward(uint256 token) external onlyOwner returns(bool){
     require(token < _ownerTokenAllowance,"Value is not feasible, Please Try Again!!!");
-    _ownerTokenAllowance = _ownerTokenAllowance.sub(token);
     ixend.transferFrom(address(this), msg.sender, token);
+    _ownerTokenAllowance = _ownerTokenAllowance.sub(token);
     return true;
   }
   
@@ -336,13 +336,13 @@ contract XendStaking {
   function stakeToken(uint256 tokens, uint256 time) external tokenStakeCheck(tokens, time) returns(bool){
     require(tokenPaused == false, "Staking is Paused, Please try after staking get unpaused!!!");
     
-    _tokentime = now + (time * 1 days);
+    _tokentime = block.timestamp + (time * 1 days);
     _tokenStakingCount = _tokenStakingCount + 1;
     _tokenTotalDays[_tokenStakingCount] = time;
     _tokenStakingAddress[_tokenStakingCount] = msg.sender;
     _tokenStakingId[msg.sender].push(_tokenStakingCount);
     _tokenStakingEndTime[_tokenStakingCount] = _tokentime;
-    _tokenStakingStartTime[_tokenStakingCount] = now;
+    _tokenStakingStartTime[_tokenStakingCount] = block.timestamp;
     _usersTokens[_tokenStakingCount] = tokens;
     _TokenTransactionStatus[_tokenStakingCount] = false;
     _tokenStakingCount = _tokenStakingCount +1;
@@ -379,7 +379,7 @@ contract XendStaking {
 
   // function to calculate penalty for the message sender for token
   function getTokenPenaltyDetailByStakingId(uint256 id) public view returns(uint256){
-    if(_tokenStakingEndTime[id] > now){
+    if(_tokenStakingEndTime[id] > block.timestamp){
         for (uint i = 0; i < categories.length; i++) {
           if (_tokenTotalDays[id] == categories[i].period) {
             return (_usersTokens[id] * categories[i].tokenPenaltyPercent/BASIS_POINT);
@@ -398,10 +398,10 @@ contract XendStaking {
     
     for (uint i = 0; i < categories.length; i++) {
       if (_tokenTotalDays[stakingId] == categories[i].period) {
-        require(now >= _tokenStakingStartTime[stakingId] + categories[i].withdrawTime, "Unable to Withdraw Staked token before withdraw time of staking start time, Please Try Again Later!!!");
+        require(block.timestamp >= _tokenStakingStartTime[stakingId] + categories[i].withdrawTime, "Unable to Withdraw Staked token before withdraw time of staking start time, Please Try Again Later!!!");
         _TokenTransactionStatus[stakingId] = true;
         
-        if(now >= _tokenStakingEndTime[stakingId]) {
+        if(block.timestamp >= _tokenStakingEndTime[stakingId]) {
           _finalTokenStakeWithdraw[stakingId] = _usersTokens[stakingId].add(getTokenRewardDetailsByStakingId(stakingId));
           _distributedRewardAmount += getTokenRewardDetailsByStakingId(stakingId);
         } else {
@@ -490,7 +490,7 @@ contract XendStaking {
         staked += _usersTokens[stakingId];
         for (uint j = 0; j < categories.length; j++) {
           if (_tokenTotalDays[stakingId] == categories[j].period) {
-            if(now >= _tokenStakingEndTime[stakingId]) {
+            if(block.timestamp >= _tokenStakingEndTime[stakingId]) {
               reward += getTokenRewardDetailsByStakingId(stakingId);
             } else {
               reward += getTokenPenaltyDetailByStakingId(stakingId);
