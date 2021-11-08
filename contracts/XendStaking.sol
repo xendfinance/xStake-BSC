@@ -508,5 +508,34 @@ contract XendStaking {
   function getCategories() external view returns (Package[] memory) {
     return categories;
   }
+
+  struct UserActivePackage {
+    string name;
+    uint256 period;
+    uint256 amount;
+  }
+
+  // Get the user's staked balance per package
+  function getActivePackagesByAddress(address addr) external view returns (UserActivePackage[] memory) {
+    require(addr != address(0), "Invalid Address, Pleae Try Again!!!");
+    uint256 length = categories.length;
+    UserActivePackage[] memory packages = new UserActivePackage[](length);
+    uint256[] memory tokenStakingIds = _tokenStakingId[addr];
+
+    for (uint i = 0; i < categories.length; i++) {
+      packages[i].name = categories[i].name;
+      packages[i].period = categories[i].period;
+      packages[i].amount = 0;
+      
+      for (uint j = 0; j < tokenStakingIds.length; j++) {
+        uint256 stakingId = tokenStakingIds[j];
+        if (_finalTokenStakeWithdraw[stakingId] == 0 && _tokenTotalDays[stakingId] == categories[i].period) {
+          packages[i].amount += _usersTokens[stakingId];
+        }
+      }
+    }
+
+    return packages;
+  }
   
 }

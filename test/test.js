@@ -71,55 +71,55 @@ contract('XendStaking', async([alice, bob, dev, minter, admin]) => {
     }
   })
 
-  // it("deposit tokens, withdraw tokens", async () => {
+  it("deposit tokens, withdraw tokens", async () => {
     
-  //   const xendBalance = web3.utils.toWei('100')
+    const xendBalance = web3.utils.toWei('100')
 
-  //   console.log('balance before:', xendBalance.toString())
+    console.log('balance before:', xendBalance.toString())
     
-  //   await this.mockXend.approve(this.xendStaking.address, xendBalance, {
-  //     from: alice
-  //   })
+    await this.mockXend.approve(this.xendStaking.address, xendBalance, {
+      from: alice
+    })
 
-  //   await this.xendStaking.stakeToken(xendBalance, PERIOD_SILVER, {
-  //     from: alice
-  //   })
+    await this.xendStaking.stakeToken(xendBalance, PERIOD_SILVER, {
+      from: alice
+    })
 
-  //   await time.increase(time.duration.days(30));
+    await time.increase(time.duration.days(30));
 
-  //   await this.mockXend.approve(this.xendStaking.address, xendBalance, {
-  //     from: alice
-  //   })
+    await this.mockXend.approve(this.xendStaking.address, xendBalance, {
+      from: alice
+    })
 
-  //   await this.xendStaking.stakeToken(xendBalance, PERIOD_GOLD, {
-  //     from: alice
-  //   })
+    await this.xendStaking.stakeToken(xendBalance, PERIOD_GOLD, {
+      from: alice
+    })
 
-  //   const stakingIds = await this.xendStaking.getTokenStakingIdByAddress(alice)
+    const stakingIds = await this.xendStaking.getTokenStakingIdByAddress(alice)
 
-  //   // console.log('staking ids:', stakingIds)
+    // console.log('staking ids:', stakingIds)
 
-  //   let userInfo = await this.xendStaking.getUserInfoByAddress(alice);
-  //   console.log('staked:', userInfo.staked.toString());
-  //   console.log('earned:', userInfo.earned.toString());
-  //   console.log('reward:', userInfo.reward.toString());
+    let userInfo = await this.xendStaking.getUserInfoByAddress(alice);
+    console.log('staked:', userInfo.staked.toString());
+    console.log('earned:', userInfo.earned.toString());
+    console.log('reward:', userInfo.reward.toString());
 
-  //   await time.increase(time.duration.days(30));
+    await time.increase(time.duration.days(30));
 
-  //   userInfo = await this.xendStaking.getUserInfoByAddress(alice);
-  //   console.log('staked:', userInfo.staked.toString());
-  //   console.log('earned:', userInfo.earned.toString());
-  //   console.log('reward:', userInfo.reward.toString());
+    userInfo = await this.xendStaking.getUserInfoByAddress(alice);
+    console.log('staked:', userInfo.staked.toString());
+    console.log('earned:', userInfo.earned.toString());
+    console.log('reward:', userInfo.reward.toString());
 
-  //   await this.xendStaking.withdrawStakedTokens(stakingIds[0], {
-  //     from: alice
-  //   })
+    await this.xendStaking.withdrawStakedTokens(stakingIds[0], {
+      from: alice
+    })
 
-  //   const xendBalanceAfter = await this.mockXend.balanceOf(alice)
+    const xendBalanceAfter = await this.mockXend.balanceOf(alice)
 
-  //   console.log('balance after:', xendBalanceAfter.toString())
+    console.log('balance after:', xendBalanceAfter.toString())
 
-  // })
+  })
 
   it("try to deposit over package limit", async () => {
     
@@ -135,6 +135,11 @@ contract('XendStaking', async([alice, bob, dev, minter, admin]) => {
 
     console.log('first deposit success')
 
+    let userInfo = await this.xendStaking.getUserInfoByAddress(alice);
+    console.log('staked:', userInfo.staked.toString());
+    console.log('earned:', userInfo.earned.toString());
+    console.log('reward:', userInfo.reward.toString());
+
     await this.mockXend.approve(this.xendStaking.address, xendBalance, {
       from: alice
     })
@@ -147,5 +152,38 @@ contract('XendStaking', async([alice, bob, dev, minter, admin]) => {
       assert.equal(err.reason, 'Selected Package was already filled. Try another package.', "second deposit should fail")
     }
 
+  })
+
+  it("getActivePackagesByAddress", async () => {
+    let xendBalance = web3.utils.toWei('100')
+
+    await this.mockXend.approve(this.xendStaking.address, xendBalance, {
+      from: alice
+    })
+
+    await this.xendStaking.stakeToken(xendBalance, PERIOD_SILVER, {
+      from: alice
+    })
+
+    await this.mockXend.approve(this.xendStaking.address, xendBalance, {
+      from: alice
+    })
+
+    await this.xendStaking.stakeToken(xendBalance, PERIOD_SILVER, {
+      from: alice
+    })
+
+    await time.increase(time.duration.days(30));
+
+    await this.xendStaking.withdrawStakedTokens(1, {
+      from: alice
+    })
+
+    const packages = await this.xendStaking.getActivePackagesByAddress(alice);
+    for (let i = 0; i < packages.length; i++) {
+      console.log(packages[i].name)
+      console.log(packages[i].period.toString())
+      console.log(packages[i].amount.toString())
+    }
   })
 })
