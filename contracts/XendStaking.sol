@@ -345,7 +345,6 @@ contract XendStaking {
     _tokenStakingStartTime[_tokenStakingCount] = block.timestamp;
     _usersTokens[_tokenStakingCount] = tokens;
     _TokenTransactionStatus[_tokenStakingCount] = false;
-    _tokenStakingCount = _tokenStakingCount +1;
     totalStakedToken = totalStakedToken.add(tokens);
     totalTokenStakesInContract = totalTokenStakesInContract.add(tokens);
     totalStakedInPackage[time] = totalStakedInPackage[time].add(tokens);
